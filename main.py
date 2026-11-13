@@ -1,63 +1,68 @@
-#!/usr/bin/env python3
-"""make.fun ai-joke-03 entry (entrant: nurz).
+"""One-liner about an AI coding agent, written to entry.txt.
 
-Writes one original joke about AI coding agents to entry.txt in the
-output directory. The output directory is resolved in this order:
-
-  1. the MAKEFUN_OUTPUT_DIR environment variable
-  2. the first command-line argument
-  3. /output (the grader's writable mount; never a relative path)
-
-Standard library only. Deterministic: no network, no clock, no
-randomness, no input — every run writes exactly the same bytes.
+The joke is a single fixed string. This module only resolves where the
+output directory is, checks the joke against the competition's gate
+(1-280 Unicode code points, at least one non-whitespace character),
+and writes it out as UTF-8, deterministically, every run.
 """
 
 import os
 import sys
+from pathlib import Path
 
-# The joke. One line, no trailing newline: the file holds exactly this
-# string and nothing else.
 JOKE = (
-    "My coding agent hallucinated an API that doesn't exist, wrote the "
-    "docs for it, unit tests against it, and filed a strongly worded "
-    "issue on the real repo demanding they add it."
+    "My coding agent hallucinated an API that doesn't exist, "
+    "wrote the docs for it, unit tests against it, and filed a "
+    "strongly worded issue on the real repo demanding they add it."
 )
 
+MIN_CHARS = 1
+MAX_CHARS = 280
+FALLBACK_DIR = "/output"
 
-def output_dir():
-    """Resolve where entry.txt belongs.
 
-    Priority: the MAKEFUN_OUTPUT_DIR environment variable first, then
-    the first command-line argument, then the absolute /output mount
-    as the last resort. A relative fallback is never used: the grader
-    runs the program with an unknown working directory that may be
-    read-only, so only an absolute path is safe.
-    """
-    from_env = os.environ.get("MAKEFUN_OUTPUT_DIR")
-    if from_env:
+class JokeEntry:
+    """Holds the joke and knows how to validate and publish it."""
+
+    def __init__(self, text):
+        self.text = text
+
+    def is_valid(self):
+        """Gate check: length in code points, plus a non-space char."""
+        size = len(self.text)
+        if size < MIN_CHARS or size > MAX_CHARS:
+            return False
+        return any(char not in " \t\r\n" for char in self.text)
+
+    def publish(self, directory):
+        """Write the joke to entry.txt inside directory, UTF-8."""
+        if not self.is_valid():
+            raise ValueError("refusing to publish a joke that fails the gate")
+        target = Path(directory) / "entry.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(self.text, encoding="utf-8")
+        return target
+
+
+def resolve_output_dir(argv):
+    """Output dir: env var first, then a CLI argument, then /output."""
+    from_env = os.environ.get("MAKEFUN_OUTPUT_DIR", "")
+    if from_env.strip():
         return from_env
-    if len(sys.argv) > 1:
-        return sys.argv[1]
-    # The grader mounts a writable /output and runs with no env var and
-    # an unknown CWD, so the last resort must be that absolute mount —
-    # never a relative path into a read-only working directory.
-    return "/output"
+    for arg in argv[1:]:
+        if arg.strip():
+            return arg
+    return FALLBACK_DIR
 
 
-def main():
-    # Sanity-check the entry against the gate before writing anything:
-    # 1 to 280 characters, not only white space, and a single line —
-    # a newline would count as a character and break the one-liner.
-    assert 1 <= len(JOKE) <= 280 and JOKE.strip(), "joke fails the gate"
-    assert "\n" not in JOKE and "\r" not in JOKE, "joke must be one line"
-    target_dir = output_dir()
-    os.makedirs(target_dir, exist_ok=True)
-    path = os.path.join(target_dir, "entry.txt")
-    # Write raw UTF-8 bytes so no platform newline translation can ever
-    # change what the judge sees.
-    with open(path, "wb") as handle:
-        handle.write(JOKE.encode("utf-8"))
+def main(argv):
+    entry = JokeEntry(JOKE)
+    if not entry.is_valid():
+        print("joke fails the gate check", file=sys.stderr)
+        return 1
+    entry.publish(resolve_output_dir(argv))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main(sys.argv))
