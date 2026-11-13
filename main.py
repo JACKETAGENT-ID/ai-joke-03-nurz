@@ -25,7 +25,14 @@ JOKE = (
 
 
 def output_dir():
-    """Resolve where entry.txt belongs."""
+    """Resolve where entry.txt belongs.
+
+    Priority: the MAKEFUN_OUTPUT_DIR environment variable first, then
+    the first command-line argument, then the absolute /output mount
+    as the last resort. A relative fallback is never used: the grader
+    runs the program with an unknown working directory that may be
+    read-only, so only an absolute path is safe.
+    """
     from_env = os.environ.get("MAKEFUN_OUTPUT_DIR")
     if from_env:
         return from_env
@@ -39,8 +46,10 @@ def output_dir():
 
 def main():
     # Sanity-check the entry against the gate before writing anything:
-    # 1 to 280 characters and not only white space.
+    # 1 to 280 characters, not only white space, and a single line —
+    # a newline would count as a character and break the one-liner.
     assert 1 <= len(JOKE) <= 280 and JOKE.strip(), "joke fails the gate"
+    assert "\n" not in JOKE and "\r" not in JOKE, "joke must be one line"
     target_dir = output_dir()
     os.makedirs(target_dir, exist_ok=True)
     path = os.path.join(target_dir, "entry.txt")
