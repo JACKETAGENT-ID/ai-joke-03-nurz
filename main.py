@@ -6,7 +6,7 @@ output directory. The output directory is resolved in this order:
 
   1. the MAKEFUN_OUTPUT_DIR environment variable
   2. the first command-line argument
-  3. ./out relative to the current directory
+  3. /output (the grader's writable mount; never a relative path)
 
 Standard library only. Deterministic: no network, no clock, no
 randomness, no input — every run writes exactly the same bytes.
@@ -31,7 +31,10 @@ def output_dir():
         return from_env
     if len(sys.argv) > 1:
         return sys.argv[1]
-    return "out"
+    # The grader mounts a writable /output and runs with no env var and
+    # an unknown CWD, so the last resort must be that absolute mount —
+    # never a relative path into a read-only working directory.
+    return "/output"
 
 
 def main():
